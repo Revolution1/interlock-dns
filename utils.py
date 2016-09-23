@@ -43,9 +43,10 @@ def get_server_names(client):
     names = []
     services = client.services()
     for s in services:
-        labels = s['Spec']['Labels']
-        if DOMAIN_LABEL in labels and HOSTNAME_LABEL in labels:
-            names.append('.'.join((labels[HOSTNAME_LABEL], labels[DOMAIN_LABEL])))
+        if s['Spec'].get('Labels'):
+            labels = s['Spec']['Labels']
+            if DOMAIN_LABEL in labels and HOSTNAME_LABEL in labels:
+                names.append('.'.join((labels[HOSTNAME_LABEL], labels[DOMAIN_LABEL])))
     return names
 
 
