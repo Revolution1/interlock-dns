@@ -29,10 +29,11 @@ class Resolver(object):
     # map = {'example.com': ['123.123.123.123',
     #                        '12.12.12.12']}
 
-    def __init__(self, ip_map=None, poll_interval='3s'):
+    def __init__(self, ip_map=None, poll_interval='3s', ttl='5s'):
         self.map = ip_map or {}
         self.client = Client()
         self.interval = parse_interval(poll_interval)
+        self.ttl = int(parse_interval(ttl))
         self.poll_flag = True
         self.names = []
         self.manager_ips = []
@@ -40,16 +41,17 @@ class Resolver(object):
     def poll_names(self):
         names = get_server_names(self.client)
         manager_ips = get_manager_ips(self.client)
-        msg = ('Poll Success!'
-               'Names:'
-               '    Added:   {na}'
-               '    Deleted: {nd}'
-               'Manager IPs:'
-               '    Added:   {ia}'
-               '    Deleted: {id}')
+        msg = ['Poll Success!']
+        na, nd = diff_list(self.names, names)
+        ia, id = diff_list(self.manager_ips, manager_ips)
+        (na or nd) and msg.append('Names:')
+        na and msg.append('    Added:   %s' % ', '.join(na))
+        nd and msg.append('    Deleted: %s' % ', '.join(nd))
+        (ia or id) and msg.append('Manager IPs:')
+        ia and msg.append('    Added:   %s' % ', '.join(ia))
+        id and msg.append('    Deleted: %s' % ', '.join(id))
         self.map = {n: manager_ips for n in names}
-        log.info(msg.format(*diff_list(self.names, names) +
-                             diff_list(self.manager_ips, manager_ips)))
+        log.info('\n'.join(msg))
         self.names = names
         self.manager_ips = manager_ips
 
@@ -59,15 +61,17 @@ class Resolver(object):
     def start_polling(self):
         def poll(self):
             while self.poll_flag:
-                gevent.sleep(self.interval)
                 try:
                     self.poll_names()
                 except Exception as e:
                     log.error('Polling failed: %s' % e)
+                gevent.sleep(self.interval)
 
         gevent.spawn(poll, self)
 
     def resolve(self, name):
+        if name.endswith('.'):
+            name = name[:-1]
         return self.map.get(name)
 
     def get_reply(self, query):
@@ -76,13 +80,11 @@ class Resolver(object):
             query = DNSRecord.parse(query)
         qname = str(query.q.qname)
         qtype = query.q.qtype
-        if qname.endswith('.'):
-            qname = qname[:-1]
         reply = query.reply()
         if qtype == QTYPE.A:
             IPs = self.resolve(qname)
         if IPs:
-            [reply.add_answer(RR(qname, qtype, rdata=A(ip), ttl=10)) for ip in IPs]
+            [reply.add_answer(RR(qname, qtype, rdata=A(ip), ttl=self.ttl)) for ip in IPs]
         else:
             reply.header.rcode = getattr(RCODE, 'NXDOMAIN')
         return reply
@@ -159,7 +161,8 @@ def main():
     import os
     addr = (os.getenv('BIND_IP', ''), int(os.getenv('BIND_PORT', '53')))
     log.info('Starting DCE-DNSServer...')
-    resolver = Resolver(poll_interval=os.getenv('POLL_INTERVAL', '3s'))
+    resolver = Resolver(poll_interval=os.getenv('POLL_INTERVAL', '3s'),
+                        ttl=os.getenv('DNS_TTL', '5s'))
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     tcp_socket.bind(addr)
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

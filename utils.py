@@ -7,6 +7,7 @@ def isdigit(n):
 
 
 def parse_interval(t):
+    t = str(t)
     if isdigit(t):
         return float(t)
     unit = t[-1].lower()
@@ -44,7 +45,7 @@ def get_server_names(client):
     for s in services:
         labels = s['Spec']['Labels']
         if DOMAIN_LABEL in labels and HOSTNAME_LABEL in labels:
-            names.append('.'.join((labels[DOMAIN_LABEL], labels[HOSTNAME_LABEL])))
+            names.append('.'.join((labels[HOSTNAME_LABEL], labels[DOMAIN_LABEL])))
     return names
 
 
