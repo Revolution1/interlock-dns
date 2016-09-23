@@ -164,8 +164,10 @@ def main():
     tcp_socket.bind(addr)
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_socket.bind(addr)
-    rack = ServerRack([TCPServer(resolver=resolver, listener=tcp_socket),
-                       UDPServer(resolver=resolver, listener=udp_socket)])
+    servers = [UDPServer(resolver=resolver, listener=udp_socket)]
+    if str(os.getenv('TCP_SERVER_ENABLED', '')).lower() in ('true', '1', 'enabled'):
+        servers.append(TCPServer(resolver=resolver, listener=tcp_socket))
+    rack = ServerRack(servers)
     resolver.start_polling()
     rack.serve_forever()
 
