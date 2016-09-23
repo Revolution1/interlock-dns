@@ -8,7 +8,7 @@ Only works in Docker 1.12+ swarm mode.
 2. run interlock-dns
 
 ```
-docker service create --name dns -p 53:53 \
+docker service create --name dns -p 53:53/udp -p 53:53 \
     --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
     --constraint 'node.role == manager' \
     daocloud.io/revolution1/interlock-dns
