@@ -24,12 +24,23 @@ log_handler = logging.StreamHandler(sys.stderr)
 log.addHandler(log_handler)
 log.setLevel('DEBUG')
 
+ROOT_SERVERS_MAP = {'a.root-servers.net': ['198.41.0.4'],
+                    'b.root-servers.net': ['192.228.79.201'],
+                    'c.root-servers.net': ['192.33.4.12'],
+                    'd.root-servers.net': ['128.8.10.90'],
+                    'e.root-servers.net': ['192.203.230.10'],
+                    'f.root-servers.net': ['192.5.5.241'],
+                    'g.root-servers.net': ['192.112.36.4'],
+                    'h.root-servers.net': ['128.63.2.53'],
+                    'i.root-servers.net': ['192.36.148.17'],
+                    'j.root-servers.net': ['192.58.128.30'],
+                    'k.root-servers.net': ['193.0.14.129'],
+                    'l.root-servers.net': ['198.32.64.12'],
+                    'm.root-servers.net': ['202.12.27.33']}
+
 
 class Resolver(object):
-    # map = {'example.com': ['123.123.123.123',
-    #                        '12.12.12.12']}
-
-    def __init__(self, ip_map=None, poll_interval='3s', ttl='5s'):
+    def __init__(self, ip_map=None, poll_interval='3s', ttl='5s', root_servers_map=None):
         self.map = ip_map or {}
         self.client = Client()
         self.interval = parse_interval(poll_interval)
@@ -37,20 +48,23 @@ class Resolver(object):
         self.poll_flag = True
         self.names = []
         self.manager_ips = []
+        self.root_servers_map = root_servers_map or ROOT_SERVERS_MAP
 
     def poll_names(self):
         names = get_server_names(self.client)
         manager_ips = get_manager_ips(self.client)
-        msg = ['Poll Success!']
+        msg = []
         na, nd = diff_list(self.names, names)
         ia, id = diff_list(self.manager_ips, manager_ips)
+        if any([na, nd, ia, id]):
+            msg.append('Poll Success!')
         (na or nd) and msg.append('Names:')
         na and msg.append('    Added:   %s' % ', '.join(na))
         nd and msg.append('    Deleted: %s' % ', '.join(nd))
         (ia or id) and msg.append('Manager IPs:')
         ia and msg.append('    Added:   %s' % ', '.join(ia))
         id and msg.append('    Deleted: %s' % ', '.join(id))
-        self.map = {n: manager_ips for n in names}
+        self.map = {n.lower(): manager_ips for n in names}
         log.info('\n'.join(msg))
         self.names = names
         self.manager_ips = manager_ips
@@ -72,7 +86,14 @@ class Resolver(object):
     def resolve(self, name):
         if name.endswith('.'):
             name = name[:-1]
-        return self.map.get(name)
+        name = name.lower()
+        return self.map.get(name) or self.root_servers_map.get(name)
+
+    def resolve_ns(self, name):
+        if name.endswith('.'):
+            name = name[:-1]
+        name = name.lower()
+        return self.root_servers_map.get(name)
 
     def get_reply(self, query):
         IPs = []
@@ -81,12 +102,25 @@ class Resolver(object):
         qname = str(query.q.qname)
         qtype = query.q.qtype
         reply = query.reply()
+        hit = 'No'
         if qtype == QTYPE.A:
             IPs = self.resolve(qname)
+        if qtype == QTYPE.NS:
+            IPs = self.resolve_ns(qname)
         if IPs:
+            hit = 'Yes'
             [reply.add_answer(RR(qname, qtype, rdata=A(ip), ttl=self.ttl)) for ip in IPs]
         else:
-            reply.header.rcode = getattr(RCODE, 'NXDOMAIN')
+            # _time = int(datetime.now().strftime('%Y%m%d00'))
+            # reply.add_auth(RR("", QTYPE.SOA, ttl=10800,
+            #                   rdata=SOA('a.root-servers.net', 'nstld.verisign-grs.com',
+            #                             (_time, 1800, 900, 604800, 86400))))
+            # for i in self.root_servers_map:
+            #     reply.add_auth(RR("", QTYPE.NS, ttl=57435, rdata=NS(i)))
+            # reply.add_auth(RR("", QTYPE.NS, ttl=57435, rdata=NS('114.114.114.114')))
+            # reply.header.rcode = RCODE.NXDOMAIN
+            reply.header.rcode = RCODE.SERVFAIL
+        log.info('handling request name: %s; type: %s; hit: %s' % (qname, QTYPE[qtype], hit))
         return reply
 
 
