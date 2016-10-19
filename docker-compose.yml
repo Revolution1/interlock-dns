@@ -1,7 +1,7 @@
 version: '2'
 services:
-  nginx:
-    image: daocloud.io/nginx:latest
+  dns-server:
+    image: daocloud.io/revolution1/interlock-dns:latest
     ports:
       - 53:53/udp
     volumes:
