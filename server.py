@@ -58,14 +58,21 @@ class Resolver(object):
         ia, id = diff_list(self.manager_ips, manager_ips)
         if any([na, nd, ia, id]):
             msg.append('Poll Success!')
-        (na or nd) and msg.append('Names:')
-        na and msg.append('    Added:   %s' % ', '.join(na))
-        nd and msg.append('    Deleted: %s' % ', '.join(nd))
-        (ia or id) and msg.append('Manager IPs:')
-        ia and msg.append('    Added:   %s' % ', '.join(ia))
-        id and msg.append('    Deleted: %s' % ', '.join(id))
+        if na or nd:
+            msg.append('Names:')
+            if na:
+                msg.append('    Added:   %s' % ', '.join(na))
+            if nd:
+                msg.append('    Deleted: %s' % ', '.join(nd))
+        if ia or id:
+            msg.append('Manager IPs:')
+            if ia:
+                msg.append('    Added:   %s' % ', '.join(ia))
+            if id:
+                msg.append('    Deleted: %s' % ', '.join(id))
         self.map = {n.lower(): manager_ips for n in names}
-        log.info('\n'.join(msg))
+        if msg:
+            log.info('\n'.join(msg))
         self.names = names
         self.manager_ips = manager_ips
 

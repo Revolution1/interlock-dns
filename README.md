@@ -10,7 +10,7 @@ Only works in Docker 1.12+ swarm mode.
 ```
 docker service create --name dns -p 53:53/udp -p 53:53 \
     --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
-    --constraint 'node.role == manager' \
+    --constraint 'node.role == manager' --mode global\
     daocloud.io/revolution1/interlock-dns
 ```
 
